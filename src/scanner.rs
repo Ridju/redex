@@ -1,5 +1,5 @@
-#[derive(PartialEq, Debug)]
-enum Token {
+#[derive(PartialEq, Debug, Clone)]
+pub enum Token {
     Lambda,
     Dot,
     OpenBracket,
@@ -12,12 +12,10 @@ enum ScannerError {
     UnexpectedCharacter(char),
 }
 
-
 pub mod scanner {
     use super::*;
 
-
-    pub fn parse(source: &str) -> Result<Vec<Token>, ScannerError> {
+    pub fn scan(source: &str) -> Result<Vec<Token>, ScannerError> {
         let mut chars = source.chars().peekable();
         let mut tokens = Vec::new();
         while let Some(&c) = chars.peek() {
@@ -42,7 +40,7 @@ pub mod scanner {
                     chars.next();
                 }
                 c if c.is_alphabetic() => {
-                    let var_name = parse_variable(&mut chars);
+                    let var_name = scan_variable(&mut chars);
                     tokens.push(Token::Variable(var_name));
                 }
                 _ => return Err(ScannerError::UnexpectedCharacter(c)),
@@ -52,7 +50,7 @@ pub mod scanner {
         Ok(tokens)
     }
 
-    fn parse_variable(iter: &mut std::iter::Peekable<std::str::Chars>) -> String {
+    fn scan_variable(iter: &mut std::iter::Peekable<std::str::Chars>) -> String {
         let mut result = String::new();
         while let Some(&c) = iter.peek() {
             if c == ' ' || c == '\\' || c == '.' || c == '(' || c == ')' {
@@ -74,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_lambda_input() {
-        let tokens = scanner::parse("\\").unwrap();
+        let tokens = scanner::scan("\\").unwrap();
 
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::Lambda));
@@ -82,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_dot_test() {
-        let tokens = scanner::parse(".").unwrap();
+        let tokens = scanner::scan(".").unwrap();
 
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::Dot));
@@ -90,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_open_bracket_input() {
-        let tokens = scanner::parse("(").unwrap();
+        let tokens = scanner::scan("(").unwrap();
 
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::OpenBracket));
@@ -98,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_closing_bracket_input() {
-        let tokens = scanner::parse(")").unwrap();
+        let tokens = scanner::scan(")").unwrap();
 
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::ClosedBracket));
@@ -106,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_variable_input() {
-        let tokens = scanner::parse("test_var").unwrap();
+        let tokens = scanner::scan("test_var").unwrap();
 
         assert_eq!(tokens.len(), 1);
         assert!(matches!(tokens[0], Token::Variable(_)));
@@ -117,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_full_lambda() {
-        let tokens = scanner::parse("\\(x.x) y").unwrap();
+        let tokens = scanner::scan("\\(x.x) y").unwrap();
 
         assert_eq!(
             tokens,
@@ -134,7 +132,7 @@ mod tests {
     }
     #[test]
     fn test_error_handling() {
-        let result = scanner::parse("!");
+        let result = scanner::scan("!");
 
         assert_eq!(result, Err(ScannerError::UnexpectedCharacter('!')));
     }
