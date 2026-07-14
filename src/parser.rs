@@ -1,9 +1,11 @@
+use std::iter::Peekable;
+
 use crate::scanner::Token;
 
 #[derive(PartialEq, Debug)]
 enum ParserError {
-    UnexpectedToken { token: Token, msg: String },
-    NotTerminatedAbstracion { msg: String },
+    UnexpectedToken { token: Token },
+    NotTerminated,
 }
 
 enum AST {
@@ -12,94 +14,57 @@ enum AST {
     Atom(String),
 }
 
-pub mod parser {
-    use super::*;
+struct Parser<'a> {
+    iter: Peekable<std::slice::Iter<'a, Token>>,
+}
 
-    pub fn parse(tokens: Vec<Token>) -> Result<AST, ParserError> {
-        let mut token_iter = tokens.iter().peekable();
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &'a Vec<Token>) -> Self {
+        Self {
+            iter: tokens.iter().peekable(),
+        }
+    }
 
-        let ast = parse_term(&mut token_iter)?;
+    pub fn parse(&mut self) -> Result<AST, ParserError> {
+        let ast = self.parse_term()?;
 
-        if token_iter.peek().is_some() {
-            let token = token_iter.next().unwrap();
+        if self.iter.peek().is_some() {
+            let token = self.iter.next().unwrap();
             return Err(ParserError::UnexpectedToken {
                 token: token.clone(),
-                msg: "No valid term found".to_string(),
             });
         }
 
         Ok(ast)
     }
 
-    fn parse_term(
-        token_iter: &mut std::iter::Peekable<std::slice::Iter<'_, Token>>,
-    ) -> Result<AST, ParserError> {
-        match token_iter.peek() {
-            Some(Token::Lambda) => parse_abstraction(token_iter),
-            Some(Token::OpenBracket) => parse_application(token_iter),
-            Some(Token::Variable(_)) => parse_application(token_iter),
-            Some(&t) => Err(ParserError::UnexpectedToken {
-                token: t.clone(),
-                msg: "Expected lambda (\\) or open bracket".to_string(),
-            }),
-            _ => Err(ParserError::NotTerminatedAbstracion {
-                msg: "Unexpected end of term".to_string(),
-            }),
+    fn parse_term(&mut self) -> Result<AST, ParserError> {
+        match self.iter.peek() {
+            Some(Token::Lambda) => self.parse_abstraction(),
+            Some(Token::OpenBracket) | Some(Token::Variable(_)) => self.parse_application(),
+            Some(&t) => Err(ParserError::UnexpectedToken { token: t.clone() }),
+            _ => Err(ParserError::NotTerminated),
         }
     }
 
-    fn parse_abstraction(
-        token_iter: &mut std::iter::Peekable<std::slice::Iter<'_, Token>>,
-    ) -> Result<AST, ParserError> {
-        token_iter.next();
-
-        let var_name = match token_iter.next() {
-            Some(Token::Variable(name)) => name.clone(),
-            Some(t) => {
-                return Err(ParserError::UnexpectedToken {
-                    token: t.clone(),
-                    msg: "Expected Variable".to_string(),
-                });
-            }
-            None => {
-                return Err(ParserError::NotTerminatedAbstracion {
-                    msg: "Found unexpected end of the abstraction".to_string(),
-                });
-            }
-        };
-
-        let _dot = match token_iter.next() {
-            Some(Token::Dot) => ".",
-            Some(t) => {
-                return Err(ParserError::UnexpectedToken {
-                    token: t.clone(),
-                    msg: "Expected dot".to_string(),
-                });
-            }
-            None => {
-                return Err(ParserError::NotTerminatedAbstracion {
-                    msg: "Found unexpected end of the abstraction".to_string(),
-                });
-            }
-        };
-
-        let body = parse_term(token_iter)?;
-
+    fn parse_abstraction(&mut self) -> Result<AST, ParserError> {
+        self.iter.next();
+        let var_name = self.expect_variable()?;
+        self.expect_dot()?;
+        let body = self.parse_term()?;
         Ok(AST::Abstraction {
             name: var_name,
             body: Box::new(body),
         })
     }
 
-    fn parse_application(
-        token_iter: &mut std::iter::Peekable<std::slice::Iter<'_, Token>>,
-    ) -> Result<AST, ParserError> {
-        let mut left = parse_atom(token_iter)?;
+    fn parse_application(&mut self) -> Result<AST, ParserError> {
+        let mut left = self.parse_atom()?;
 
-        while let Some(token) = token_iter.peek() {
+        while let Some(token) = self.iter.peek() {
             match token {
                 Token::OpenBracket | Token::Variable(_) => {
-                    let right = parse_atom(token_iter)?;
+                    let right = self.parse_atom()?;
                     left = AST::Application {
                         first: Box::new(left),
                         second: Box::new(right),
@@ -112,38 +77,40 @@ pub mod parser {
         Ok(left)
     }
 
-    fn parse_atom(
-        token_iter: &mut std::iter::Peekable<std::slice::Iter<'_, Token>>,
-    ) -> Result<AST, ParserError> {
-        match token_iter.peek() {
-            Some(Token::Variable(name)) => Ok(AST::Atom(name.clone())),
-            Some(Token::OpenBracket) => {
-                token_iter.next();
-                let left = parse_term(token_iter)?;
-                match token_iter.next() {
-                    Some(Token::ClosedBracket) => Ok(left),
-                    Some(t) => {
-                        return Err(ParserError::UnexpectedToken {
-                            token: t.clone(),
-                            msg: "Expected closing bracket".to_string(),
-                        });
-                    }
-                    None => {
-                        return Err(ParserError::NotTerminatedAbstracion {
-                            msg: "Expected closing bracket, found not token".to_string(),
-                        });
-                    }
+    fn parse_atom(&mut self) -> Result<AST, ParserError> {
+        let token = self.iter.next().ok_or(ParserError::NotTerminated)?;
+
+        match token {
+            Token::Variable(name) => Ok(AST::Atom(name.clone())),
+            Token::OpenBracket => {
+                let left = self.parse_term()?;
+
+                match self.iter.next() {
+                    Some(Token::OpenBracket) => Ok(left),
+                    Some(t) => Err(ParserError::UnexpectedToken { token: t.clone() }),
+                    None => Err(ParserError::NotTerminated),
                 }
             }
-            None => {
-                return Err(ParserError::NotTerminatedAbstracion {
-                    msg: "Expected closing bracket, found not token".to_string(),
-                });
+            t => Err(ParserError::UnexpectedToken { token: t.clone() }),
+        }
+    }
+
+    fn expect_variable(&mut self) -> Result<String, ParserError> {
+        match self.iter.next() {
+            Some(Token::Variable(name)) => Ok(name.clone()),
+            Some(t) => Err(ParserError::UnexpectedToken { token: t.clone() }),
+            None => Err(ParserError::NotTerminated),
+        }
+    }
+
+    fn expect_dot(&mut self) -> Result<String, ParserError> {
+        match self.iter.next() {
+            Some(Token::Dot) => Ok(".".to_string()),
+            Some(t) => {
+                return Err(ParserError::UnexpectedToken { token: t.clone() });
             }
-            _ => {
-                return Err(ParserError::NotTerminatedAbstracion {
-                    msg: "Expected closing bracket, found not token".to_string(),
-                });
+            None => {
+                return Err(ParserError::NotTerminated);
             }
         }
     }
