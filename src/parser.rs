@@ -8,6 +8,7 @@ enum ParserError {
     NotTerminated,
 }
 
+#[derive(PartialEq, Debug)]
 enum AST {
     Abstraction { name: String, body: Box<AST> },
     Application { first: Box<AST>, second: Box<AST> },
@@ -113,5 +114,95 @@ impl<'a> Parser<'a> {
                 return Err(ParserError::NotTerminated);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_abstraction() {
+        let tokens = vec![
+            Token::Lambda,
+            Token::Variable("x".to_string()),
+            Token::Dot,
+            Token::Variable("x".to_string()),
+        ];
+        let mut parser = Parser::new(&tokens);
+
+        let result = parser.parse().unwrap();
+
+        assert_eq!(
+            result,
+            AST::Abstraction {
+                name: "x".to_string(),
+                body: Box::new(AST::Atom("x".to_string()))
+            }
+        );
+    }
+
+    #[test]
+    fn test_fail_abstraction() {
+        let tokens = vec![Token::Dot];
+        let mut parser = Parser::new(&tokens);
+
+        let result = parser.parse();
+
+        assert!(matches!(
+            result,
+            Err(ParserError::UnexpectedToken { token: Token::Dot })
+        ));
+    }
+
+    #[test]
+    fn test_application_left_associativity() {
+        let tokens = vec![
+            Token::Variable("a".into()),
+            Token::Variable("b".into()),
+            Token::Variable("c".into()),
+        ];
+        let mut parser = Parser::new(&tokens);
+        let result = parser.parse().unwrap();
+
+        let expected = AST::Application {
+            first: Box::new(AST::Application {
+                first: Box::new(AST::Atom("a".into())),
+                second: Box::new(AST::Atom("b".into())),
+            }),
+            second: Box::new(AST::Atom("c".into())),
+        };
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_abstraction_application_mix() {
+        let tokens = vec![
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
+            Token::Variable("x".into()),
+            Token::Variable("y".into()),
+        ];
+
+        let result = Parser::new(&tokens).parse().unwrap();
+
+        // Prüfe die Struktur: Abstraktion enthält Applikation
+        if let AST::Abstraction { name, body } = result {
+            assert_eq!(name, "x");
+            assert!(matches!(*body, AST::Application { .. }));
+        } else {
+            panic!("Sollte eine Abstraktion sein");
+        }
+    }
+
+    #[test]
+    fn test_atom_variable() {
+        let tokens = vec![Token::Variable("x".to_string())];
+        let mut parser = Parser::new(&tokens);
+        let result = parser.parse_atom().unwrap();
+
+        assert_eq!(result, AST::Atom("x".to_string()));
     }
 }
