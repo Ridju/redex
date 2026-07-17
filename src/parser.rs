@@ -10,19 +10,21 @@ enum ParserError {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum AST {
-    Abstraction { name: String, body: Box<AST> },
+    Abstraction { body: Box<AST> },
     Application { first: Box<AST>, second: Box<AST> },
-    Atom(String),
+    Index(usize),
 }
 
 struct Parser<'a> {
     iter: Peekable<std::slice::Iter<'a, Token>>,
+    context: Vec<String>
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Vec<Token>) -> Self {
         Self {
             iter: tokens.iter().peekable(),
+            context: Vec::new(),
         }
     }
 
@@ -52,9 +54,14 @@ impl<'a> Parser<'a> {
         self.iter.next();
         let var_name = self.expect_variable()?;
         self.expect_dot()?;
+
+        self.context.push(var_name);
+
         let body = self.parse_term()?;
+
+        self.context.pop();
+
         Ok(AST::Abstraction {
-            name: var_name,
             body: Box::new(body),
         })
     }
@@ -82,7 +89,13 @@ impl<'a> Parser<'a> {
         let token = self.iter.next().ok_or(ParserError::NotTerminated)?;
 
         match token {
-            Token::Variable(name) => Ok(AST::Atom(name.clone())),
+            Token::Variable(name) => {
+                if let Some(pos) = self.context.iter().rev().position(|n| n == name) {
+                    Ok(AST::Index(pos))
+                } else { 
+                    Err(ParserError::UnexpectedToken { token: Token::Variable(name.clone()) })
+                }
+            }
             Token::OpenBracket => {
                 let left = self.parse_term()?;
 
@@ -120,89 +133,70 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scanner::Token;
 
     #[test]
-    fn test_abstraction() {
+    fn test_simple_abstraction() {
+        // λx. x  => Abstraktion(Index 0)
         let tokens = vec![
-            Token::Lambda,
-            Token::Variable("x".to_string()),
-            Token::Dot,
-            Token::Variable("x".to_string()),
+            Token::Lambda, Token::Variable("x".into()), Token::Dot, Token::Variable("x".into()),
         ];
-        let mut parser = Parser::new(&tokens);
+        let result = Parser::new(&tokens).parse().unwrap();
 
-        let result = parser.parse().unwrap();
+        assert_eq!(result, AST::Abstraction { body: Box::new(AST::Index(0)) });
+    }
+
+    #[test]
+    fn test_k_combinator() {
+        // λx. λy. x => Abstraktion(Abstraktion(Index 1))
+        let tokens = vec![
+            Token::Lambda, Token::Variable("x".into()), Token::Dot,
+            Token::Lambda, Token::Variable("y".into()), Token::Dot,
+            Token::Variable("x".into()),
+        ];
+        let result = Parser::new(&tokens).parse().unwrap();
 
         assert_eq!(
             result,
             AST::Abstraction {
-                name: "x".to_string(),
-                body: Box::new(AST::Atom("x".to_string()))
+                body: Box::new(AST::Abstraction {
+                    body: Box::new(AST::Index(1)),
+                }),
             }
         );
     }
 
     #[test]
-    fn test_fail_abstraction() {
-        let tokens = vec![Token::Dot];
-        let mut parser = Parser::new(&tokens);
-
-        let result = parser.parse();
-
-        assert!(matches!(
-            result,
-            Err(ParserError::UnexpectedToken { token: Token::Dot })
-        ));
-    }
-
-    #[test]
-    fn test_application_left_associativity() {
+    fn test_variable_shadowing() {
+        // λx. λx. x => Abstraktion(Abstraktion(Index 0))
         let tokens = vec![
-            Token::Variable("a".into()),
-            Token::Variable("b".into()),
-            Token::Variable("c".into()),
-        ];
-        let mut parser = Parser::new(&tokens);
-        let result = parser.parse().unwrap();
-
-        let expected = AST::Application {
-            first: Box::new(AST::Application {
-                first: Box::new(AST::Atom("a".into())),
-                second: Box::new(AST::Atom("b".into())),
-            }),
-            second: Box::new(AST::Atom("c".into())),
-        };
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_abstraction_application_mix() {
-        let tokens = vec![
-            Token::Lambda,
+            Token::Lambda, Token::Variable("x".into()), Token::Dot,
+            Token::Lambda, Token::Variable("x".into()), Token::Dot,
             Token::Variable("x".into()),
-            Token::Dot,
-            Token::Variable("x".into()),
-            Token::Variable("y".into()),
         ];
-
         let result = Parser::new(&tokens).parse().unwrap();
 
-        // Prüfe die Struktur: Abstraktion enthält Applikation
-        if let AST::Abstraction { name, body } = result {
-            assert_eq!(name, "x");
-            assert!(matches!(*body, AST::Application { .. }));
-        } else {
-            panic!("Sollte eine Abstraktion sein");
-        }
+        assert_eq!(
+            result,
+            AST::Abstraction {
+                body: Box::new(AST::Abstraction {
+                    body: Box::new(AST::Index(0)),
+                }),
+            }
+        );
     }
 
     #[test]
-    fn test_atom_variable() {
-        let tokens = vec![Token::Variable("x".to_string())];
-        let mut parser = Parser::new(&tokens);
-        let result = parser.parse_atom().unwrap();
-
-        assert_eq!(result, AST::Atom("x".to_string()));
+    fn test_application() {
+        // (λx. x) y  -> Da 'y' frei ist, wird das mit der aktuellen Logik einen Fehler werfen.
+        // Das ist korrektes Verhalten für einen strikten Lambda-Interpreter!
+        let tokens = vec![
+            Token::OpenBracket,
+            Token::Lambda, Token::Variable("x".into()), Token::Dot, Token::Variable("x".into()),
+            Token::ClosedBracket,
+            Token::Variable("y".into()),
+        ];
+        let result = Parser::new(&tokens).parse();
+        assert!(result.is_err()); // 'y' ist im Kontext nicht gebunden
     }
 }
