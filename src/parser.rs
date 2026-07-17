@@ -8,8 +8,8 @@ enum ParserError {
     NotTerminated,
 }
 
-#[derive(PartialEq, Debug)]
-enum AST {
+#[derive(PartialEq, Debug, Clone)]
+pub enum AST {
     Abstraction { name: String, body: Box<AST> },
     Application { first: Box<AST>, second: Box<AST> },
     Atom(String),
@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
                 let left = self.parse_term()?;
 
                 match self.iter.next() {
-                    Some(Token::OpenBracket) => Ok(left),
+                    Some(Token::ClosedBracket) => Ok(left),
                     Some(t) => Err(ParserError::UnexpectedToken { token: t.clone() }),
                     None => Err(ParserError::NotTerminated),
                 }
