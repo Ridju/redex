@@ -39,7 +39,7 @@ pub mod Reducer {
         }
     }
 
-    fn reduce(mut term: parser::AST) -> parser::AST {
+    pub fn reduce(mut term: parser::AST) -> parser::AST {
         loop {
             let next_term = reduce_step(term.clone());
             if next_term == term {
@@ -76,62 +76,55 @@ pub mod Reducer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::AST;
+    use crate::parser;
+
 
     #[test]
-    fn test_simple_substitution() {
-        let term = AST::Abstraction {
-            name: "x".to_string(),
-            body: Box::new(AST::Atom("x".to_string())),
+    fn test_identity_reduction() {
+        let identity = parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) };
+        let term = parser::AST::Application {
+            first: Box::new(identity.clone()),
+            second: Box::new(identity.clone()),
         };
 
-        let replacement = AST::Atom("y".to_string());
-
-        let mut reducer = Reducer {};
-        let result = reducer.substitute(term, &"x".to_string(), &replacement);
-
-        let expected = AST::Abstraction {
-            name: "x".to_string(),
-            body: Box::new(AST::Atom("y".to_string())),
-        };
-
-        assert_eq!(result, expected);
+        let result = Reducer::reduce(term);
+        assert_eq!(result, identity);
     }
 
     #[test]
-    fn test_free_variable_substitution() {
-        let term = AST::Abstraction {
-            name: "z".to_string(),
-            body: Box::new(AST::Atom("x".to_string())),
-        };
-
-        let replacement = AST::Atom("y".to_string());
-        let mut reducer = Reducer {};
-        let result = reducer.substitute(term, &"x".to_string(), &replacement);
-
-        let expected = AST::Abstraction {
-            name: "z".to_string(),
-            body: Box::new(AST::Atom("y".to_string())),
-        };
-
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_simple_reduction() {
-        let term = AST::Application {
-            first: Box::new(AST::Abstraction {
-                name: "x".to_string(),
-                body: Box::new(AST::Atom("x".to_string())),
+    fn test_k_combinator_reduction() {
+        let term = parser::AST::Application {
+            first: Box::new(parser::AST::Application {
+                first: Box::new(parser::AST::Abstraction {
+                    body: Box::new(parser::AST::Abstraction {
+                        body: Box::new(parser::AST::Index(1)),
+                    }),
+                }),
+                second: Box::new(parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) }), // Argument a
             }),
-            second: Box::new(AST::Atom("y".to_string())),
+            second: Box::new(parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) }), // Argument b
         };
 
-        let mut reducer = Reducer {};
-        let result = reducer.reduce(term);
+        let result = Reducer::reduce(term);
+        
+        assert_eq!(result, parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) });
+    }
 
-        let expected = AST::Atom("y".to_string());
+    #[test]
+    fn test_nested_reduction() {
+        let id = parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) };
+        
+        let term = parser::AST::Application {
+            first: Box::new(parser::AST::Abstraction {
+                body: Box::new(parser::AST::Application {
+                    first: Box::new(id.clone()),
+                    second: Box::new(parser::AST::Index(0)),
+                }),
+            }),
+            second: Box::new(id.clone()),
+        };
 
-        assert_eq!(result, expected);
+        let result = Reducer::reduce(term);
+        assert_eq!(result, id);
     }
 }
