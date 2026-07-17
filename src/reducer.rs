@@ -47,6 +47,38 @@ impl Reducer {
             }
         }
     }
+
+    fn reduce(&mut self, mut term: paser::AST) -> parser::AST {
+        loop {
+            let next_term = self.reduce_step(term.clone());
+            if next_term == term { 
+                break;
+            }
+            term = next_term;
+        }
+        term
+    }
+
+
+    fn reduce_step(&mut self, term: parser::AST) -> parser::AST {
+        match term {
+            parser::AST::Application { first, second } => {
+                match *first { 
+                    parser::AST::Abstraction { name, body } => {
+                        self.substitute(*body, &name, &*second)
+                    }
+                    _ => {
+                        let new_first = self.reduce_step(*first);
+                        let new_second = self.reduce_step(*second);
+                        parser::AST::Application { first: Box::new(new_first), second: Box::new(new_second) }
+                    }
+                }
+            }
+            parser::AST::Abstraction { name, body } => {
+                parser::AST::Abstraction { name, body: Box::new(self.reduce_step(*body))}
+            }
+            _ => term,
+    }
 }
 
 #[cfg(test)]
