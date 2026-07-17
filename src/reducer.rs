@@ -1,56 +1,47 @@
-use crate::parser;
+pub mod Reducer {
+    use crate::parser;
 
-#[derive(PartialEq, Debug)]
-enum ReducerError {
-    GeneritcError,
-}
-
-struct Reducer {}
-
-impl Reducer {
-    fn new() -> Self {
-        todo!("write constructor");
-    }
-
-    fn substitute(
-        &mut self,
-        term: parser::AST,
-        target: &String,
-        replacement: &parser::AST,
-    ) -> parser::AST {
+    fn shift(term: &parser::AST, depth: usize, inc: isize) -> parser::AST {
         match term {
-            parser::AST::Atom(name) => {
-                if &name == target {
-                    replacement.clone()
+            parser::AST::Index(i) => {
+                if *i >= depth {
+                    parser::AST::Index((*i as isize + inc) as usize)
                 } else {
-                    parser::AST::Atom(name)
+                    parser::AST::Index(*i)
                 }
             }
-            parser::AST::Abstraction { name, body } => {
-                if &name == target {
-                    parser::AST::Abstraction { name: name, body }
-                } else {
-                    let new_body = self.substitute(*body, target, replacement);
-                    parser::AST::Abstraction {
-                        name: name,
-                        body: Box::new(new_body),
-                    }
-                }
-            }
-            parser::AST::Application { first, second } => {
-                let left = self.substitute(*first, target, replacement);
-                let right = self.substitute(*second, target, replacement);
-                parser::AST::Application {
-                    first: Box::new(left),
-                    second: Box::new(right),
-                }
-            }
+            parser::AST::Abstraction { body } => parser::AST::Abstraction {
+                body: Box::new(shift(body, depth + 1, inc)),
+            },
+            parser::AST::Application { first, second } => parser::AST::Application {
+                first: Box::new(shift(first, depth, inc)),
+                second: Box::new(shift(second, depth, inc)),
+            },
         }
     }
 
-    fn reduce(&mut self, mut term: parser::AST) -> parser::AST {
+    fn substitute(term: &parser::AST, target: usize, replacement: &parser::AST) -> parser::AST {
+        match term {
+            parser::AST::Index(i) => {
+                if *i == target {
+                    shift(replacement, 0, target as isize)
+                } else {
+                    parser::AST::Index(*i)
+                }
+            }
+            parser::AST::Abstraction { body } => parser::AST::Abstraction {
+                body: Box::new(substitute(body, target + 1, replacement)),
+            },
+            parser::AST::Application { first, second } => parser::AST::Application {
+                first: Box::new(substitute(first, target, replacement)),
+                second: Box::new(substitute(second, target, replacement)),
+            },
+        }
+    }
+
+    fn reduce(mut term: parser::AST) -> parser::AST {
         loop {
-            let next_term = self.reduce_step(term.clone());
+            let next_term = reduce_step(term.clone());
             if next_term == term {
                 break;
             }
@@ -59,23 +50,24 @@ impl Reducer {
         term
     }
 
-    fn reduce_step(&mut self, term: parser::AST) -> parser::AST {
+    fn reduce_step(term: parser::AST) -> parser::AST {
         match term {
-            parser::AST::Application { first, second } => match *first {
-                parser::AST::Abstraction { name, body } => self.substitute(*body, &name, &*second),
-                _ => {
-                    let new_first = self.reduce_step(*first);
-                    let new_second = self.reduce_step(*second);
+            // Redex gefunden: (λ. body) argument
+            parser::AST::Application { first, second } => {
+                if let parser::AST::Abstraction { body } = *first {
+                    let result = substitute(&body, 0, &*second);
+                    shift(&result, 0, -1)
+                } else {
                     parser::AST::Application {
-                        first: Box::new(new_first),
-                        second: Box::new(new_second),
+                        first: Box::new(reduce_step(*first)),
+                        second: Box::new(reduce_step(*second)),
                     }
                 }
+            }
+            parser::AST::Abstraction { body } => parser::AST::Abstraction {
+                body: Box::new(reduce_step(*body)),
             },
-            parser::AST::Abstraction { name, body } => parser::AST::Abstraction {
-                name,
-                body: Box::new(self.reduce_step(*body)),
-            },
+            // Index kann nicht weiter reduziert werden
             _ => term,
         }
     }

@@ -17,7 +17,7 @@ pub enum AST {
 
 struct Parser<'a> {
     iter: Peekable<std::slice::Iter<'a, Token>>,
-    context: Vec<String>
+    context: Vec<String>,
 }
 
 impl<'a> Parser<'a> {
@@ -92,8 +92,10 @@ impl<'a> Parser<'a> {
             Token::Variable(name) => {
                 if let Some(pos) = self.context.iter().rev().position(|n| n == name) {
                     Ok(AST::Index(pos))
-                } else { 
-                    Err(ParserError::UnexpectedToken { token: Token::Variable(name.clone()) })
+                } else {
+                    Err(ParserError::UnexpectedToken {
+                        token: Token::Variable(name.clone()),
+                    })
                 }
             }
             Token::OpenBracket => {
@@ -139,19 +141,31 @@ mod tests {
     fn test_simple_abstraction() {
         // λx. x  => Abstraktion(Index 0)
         let tokens = vec![
-            Token::Lambda, Token::Variable("x".into()), Token::Dot, Token::Variable("x".into()),
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
+            Token::Variable("x".into()),
         ];
         let result = Parser::new(&tokens).parse().unwrap();
 
-        assert_eq!(result, AST::Abstraction { body: Box::new(AST::Index(0)) });
+        assert_eq!(
+            result,
+            AST::Abstraction {
+                body: Box::new(AST::Index(0))
+            }
+        );
     }
 
     #[test]
     fn test_k_combinator() {
         // λx. λy. x => Abstraktion(Abstraktion(Index 1))
         let tokens = vec![
-            Token::Lambda, Token::Variable("x".into()), Token::Dot,
-            Token::Lambda, Token::Variable("y".into()), Token::Dot,
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
+            Token::Lambda,
+            Token::Variable("y".into()),
+            Token::Dot,
             Token::Variable("x".into()),
         ];
         let result = Parser::new(&tokens).parse().unwrap();
@@ -170,8 +184,12 @@ mod tests {
     fn test_variable_shadowing() {
         // λx. λx. x => Abstraktion(Abstraktion(Index 0))
         let tokens = vec![
-            Token::Lambda, Token::Variable("x".into()), Token::Dot,
-            Token::Lambda, Token::Variable("x".into()), Token::Dot,
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
             Token::Variable("x".into()),
         ];
         let result = Parser::new(&tokens).parse().unwrap();
@@ -192,7 +210,10 @@ mod tests {
         // Das ist korrektes Verhalten für einen strikten Lambda-Interpreter!
         let tokens = vec![
             Token::OpenBracket,
-            Token::Lambda, Token::Variable("x".into()), Token::Dot, Token::Variable("x".into()),
+            Token::Lambda,
+            Token::Variable("x".into()),
+            Token::Dot,
+            Token::Variable("x".into()),
             Token::ClosedBracket,
             Token::Variable("y".into()),
         ];
