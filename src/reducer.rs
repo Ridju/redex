@@ -48,10 +48,10 @@ impl Reducer {
         }
     }
 
-    fn reduce(&mut self, mut term: paser::AST) -> parser::AST {
+    fn reduce(&mut self, mut term: parser::AST) -> parser::AST {
         loop {
             let next_term = self.reduce_step(term.clone());
-            if next_term == term { 
+            if next_term == term {
                 break;
             }
             term = next_term;
@@ -59,25 +59,25 @@ impl Reducer {
         term
     }
 
-
     fn reduce_step(&mut self, term: parser::AST) -> parser::AST {
         match term {
-            parser::AST::Application { first, second } => {
-                match *first { 
-                    parser::AST::Abstraction { name, body } => {
-                        self.substitute(*body, &name, &*second)
-                    }
-                    _ => {
-                        let new_first = self.reduce_step(*first);
-                        let new_second = self.reduce_step(*second);
-                        parser::AST::Application { first: Box::new(new_first), second: Box::new(new_second) }
+            parser::AST::Application { first, second } => match *first {
+                parser::AST::Abstraction { name, body } => self.substitute(*body, &name, &*second),
+                _ => {
+                    let new_first = self.reduce_step(*first);
+                    let new_second = self.reduce_step(*second);
+                    parser::AST::Application {
+                        first: Box::new(new_first),
+                        second: Box::new(new_second),
                     }
                 }
-            }
-            parser::AST::Abstraction { name, body } => {
-                parser::AST::Abstraction { name, body: Box::new(self.reduce_step(*body))}
-            }
+            },
+            parser::AST::Abstraction { name, body } => parser::AST::Abstraction {
+                name,
+                body: Box::new(self.reduce_step(*body)),
+            },
             _ => term,
+        }
     }
 }
 
@@ -108,22 +108,37 @@ mod tests {
 
     #[test]
     fn test_free_variable_substitution() {
-        // Term: λz. x
         let term = AST::Abstraction {
             name: "z".to_string(),
             body: Box::new(AST::Atom("x".to_string())),
         };
 
-        // Ersetze "x" durch "y"
         let replacement = AST::Atom("y".to_string());
         let mut reducer = Reducer {};
         let result = reducer.substitute(term, &"x".to_string(), &replacement);
 
-        // Erwartetes Ergebnis: λz. y
         let expected = AST::Abstraction {
             name: "z".to_string(),
             body: Box::new(AST::Atom("y".to_string())),
         };
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_simple_reduction() {
+        let term = AST::Application {
+            first: Box::new(AST::Abstraction {
+                name: "x".to_string(),
+                body: Box::new(AST::Atom("x".to_string())),
+            }),
+            second: Box::new(AST::Atom("y".to_string())),
+        };
+
+        let mut reducer = Reducer {};
+        let result = reducer.reduce(term);
+
+        let expected = AST::Atom("y".to_string());
 
         assert_eq!(result, expected);
     }
