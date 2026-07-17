@@ -48,3 +48,51 @@ impl Reducer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::AST;
+
+    #[test]
+    fn test_simple_substitution() {
+        let term = AST::Abstraction {
+            name: "x".to_string(),
+            body: Box::new(AST::Atom("x".to_string())),
+        };
+
+        let replacement = AST::Atom("y".to_string());
+
+        let mut reducer = Reducer {};
+        let result = reducer.substitute(term, &"x".to_string(), &replacement);
+
+        let expected = AST::Abstraction {
+            name: "x".to_string(),
+            body: Box::new(AST::Atom("y".to_string())),
+        };
+
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_free_variable_substitution() {
+        // Term: λz. x
+        let term = AST::Abstraction {
+            name: "z".to_string(),
+            body: Box::new(AST::Atom("x".to_string())),
+        };
+
+        // Ersetze "x" durch "y"
+        let replacement = AST::Atom("y".to_string());
+        let mut reducer = Reducer {};
+        let result = reducer.substitute(term, &"x".to_string(), &replacement);
+
+        // Erwartetes Ergebnis: λz. y
+        let expected = AST::Abstraction {
+            name: "z".to_string(),
+            body: Box::new(AST::Atom("y".to_string())),
+        };
+
+        assert_eq!(result, expected);
+    }
+}
