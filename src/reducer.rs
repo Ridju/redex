@@ -1,4 +1,4 @@
-pub mod Reducer {
+pub mod reducer {
     use crate::parser;
 
     fn shift(term: &parser::AST, depth: usize, inc: isize) -> parser::AST {
@@ -88,7 +88,7 @@ mod tests {
             second: Box::new(identity.clone()),
         };
 
-        let result = Reducer::reduce(term);
+        let result = reducer::reduce(term);
         assert_eq!(result, identity);
     }
 
@@ -110,7 +110,7 @@ mod tests {
             }), // Argument b
         };
 
-        let result = Reducer::reduce(term);
+        let result = reducer::reduce(term);
 
         assert_eq!(
             result,
@@ -136,7 +136,7 @@ mod tests {
             second: Box::new(id.clone()),
         };
 
-        let result = Reducer::reduce(term);
+        let result = reducer::reduce(term);
         assert_eq!(result, id);
     }
 }
