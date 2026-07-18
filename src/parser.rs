@@ -4,16 +4,44 @@ use std::iter::Peekable;
 
 impl fmt::Display for AST {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AST::Index(i) => write!(f, "{}", i),
-            AST::Abstraction { body } => write!(f, "λ. {}", body),
-            AST::Application { first, second } => write!(f, "({} {})", first, second),
+        fn format_rec(
+            node: &AST,
+            ctx: &mut Vec<String>,
+            f: &mut fmt::Formatter<'_>,
+        ) -> fmt::Result {
+            match node {
+                AST::Index(i) => {
+                    match ctx.iter().rev().nth(*i) {
+                        Some(name) => write!(f, "{}", name)?,
+                        // Hier einfach einen Platzhalter nehmen, statt den Index zu drucken
+                        None => write!(f, "free")?,
+                    }
+                    Ok(())
+                }
+                AST::Abstraction { body } => {
+                    let name = format!("x{}", ctx.len()); // Generiert Namen wie x0, x1...
+                    ctx.push(name.clone());
+                    write!(f, "(λ{}. ", name)?;
+                    format_rec(body, ctx, f)?;
+                    write!(f, ")")?;
+                    ctx.pop();
+                    Ok(())
+                }
+                AST::Application { first, second } => {
+                    write!(f, "(")?;
+                    format_rec(first, ctx, f)?;
+                    write!(f, " ")?;
+                    format_rec(second, ctx, f)?;
+                    write!(f, ")")
+                }
+            }
         }
+        format_rec(self, &mut Vec::new(), f)
     }
 }
 
 #[derive(PartialEq, Debug)]
-enum ParserError {
+pub enum ParserError {
     UnexpectedToken { token: Token },
     NotTerminated,
 }
@@ -25,7 +53,7 @@ pub enum AST {
     Index(usize),
 }
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     iter: Peekable<std::slice::Iter<'a, Token>>,
     context: Vec<String>,
 }
