@@ -1,6 +1,16 @@
+use crate::scanner::Token;
+use std::fmt;
 use std::iter::Peekable;
 
-use crate::scanner::Token;
+impl fmt::Display for AST {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AST::Index(i) => write!(f, "{}", i),
+            AST::Abstraction { body } => write!(f, "λ. {}", body),
+            AST::Application { first, second } => write!(f, "({} {})", first, second),
+        }
+    }
+}
 
 #[derive(PartialEq, Debug)]
 enum ParserError {

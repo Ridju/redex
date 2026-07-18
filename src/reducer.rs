@@ -78,10 +78,11 @@ mod tests {
     use super::*;
     use crate::parser;
 
-
     #[test]
     fn test_identity_reduction() {
-        let identity = parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) };
+        let identity = parser::AST::Abstraction {
+            body: Box::new(parser::AST::Index(0)),
+        };
         let term = parser::AST::Application {
             first: Box::new(identity.clone()),
             second: Box::new(identity.clone()),
@@ -100,20 +101,31 @@ mod tests {
                         body: Box::new(parser::AST::Index(1)),
                     }),
                 }),
-                second: Box::new(parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) }), // Argument a
+                second: Box::new(parser::AST::Abstraction {
+                    body: Box::new(parser::AST::Index(0)),
+                }), // Argument a
             }),
-            second: Box::new(parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) }), // Argument b
+            second: Box::new(parser::AST::Abstraction {
+                body: Box::new(parser::AST::Index(0)),
+            }), // Argument b
         };
 
         let result = Reducer::reduce(term);
-        
-        assert_eq!(result, parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) });
+
+        assert_eq!(
+            result,
+            parser::AST::Abstraction {
+                body: Box::new(parser::AST::Index(0))
+            }
+        );
     }
 
     #[test]
     fn test_nested_reduction() {
-        let id = parser::AST::Abstraction { body: Box::new(parser::AST::Index(0)) };
-        
+        let id = parser::AST::Abstraction {
+            body: Box::new(parser::AST::Index(0)),
+        };
+
         let term = parser::AST::Application {
             first: Box::new(parser::AST::Abstraction {
                 body: Box::new(parser::AST::Application {
