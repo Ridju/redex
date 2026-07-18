@@ -13,13 +13,12 @@ impl fmt::Display for AST {
                 AST::Index(i) => {
                     match ctx.iter().rev().nth(*i) {
                         Some(name) => write!(f, "{}", name)?,
-                        // Hier einfach einen Platzhalter nehmen, statt den Index zu drucken
                         None => write!(f, "free")?,
                     }
                     Ok(())
                 }
                 AST::Abstraction { body } => {
-                    let name = format!("x{}", ctx.len()); // Generiert Namen wie x0, x1...
+                    let name = format!("x{}", ctx.len());
                     ctx.push(name.clone());
                     write!(f, "(λ{}. ", name)?;
                     format_rec(body, ctx, f)?;
@@ -177,7 +176,6 @@ mod tests {
 
     #[test]
     fn test_simple_abstraction() {
-        // λx. x  => Abstraktion(Index 0)
         let tokens = vec![
             Token::Lambda,
             Token::Variable("x".into()),
@@ -196,7 +194,6 @@ mod tests {
 
     #[test]
     fn test_k_combinator() {
-        // λx. λy. x => Abstraktion(Abstraktion(Index 1))
         let tokens = vec![
             Token::Lambda,
             Token::Variable("x".into()),
@@ -220,7 +217,6 @@ mod tests {
 
     #[test]
     fn test_variable_shadowing() {
-        // λx. λx. x => Abstraktion(Abstraktion(Index 0))
         let tokens = vec![
             Token::Lambda,
             Token::Variable("x".into()),
@@ -244,8 +240,6 @@ mod tests {
 
     #[test]
     fn test_application() {
-        // (λx. x) y  -> Da 'y' frei ist, wird das mit der aktuellen Logik einen Fehler werfen.
-        // Das ist korrektes Verhalten für einen strikten Lambda-Interpreter!
         let tokens = vec![
             Token::OpenBracket,
             Token::Lambda,
@@ -256,6 +250,6 @@ mod tests {
             Token::Variable("y".into()),
         ];
         let result = Parser::new(&tokens).parse();
-        assert!(result.is_err()); // 'y' ist im Kontext nicht gebunden
+        assert!(result.is_err()); 
     }
 }

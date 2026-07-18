@@ -52,7 +52,6 @@ pub mod reducer {
 
     fn reduce_step(term: parser::AST) -> parser::AST {
         match term {
-            // Redex gefunden: (λ. body) argument
             parser::AST::Application { first, second } => {
                 if let parser::AST::Abstraction { body } = *first {
                     let result = substitute(&body, 0, &*second);
@@ -67,7 +66,6 @@ pub mod reducer {
             parser::AST::Abstraction { body } => parser::AST::Abstraction {
                 body: Box::new(reduce_step(*body)),
             },
-            // Index kann nicht weiter reduziert werden
             _ => term,
         }
     }
@@ -103,11 +101,11 @@ mod tests {
                 }),
                 second: Box::new(parser::AST::Abstraction {
                     body: Box::new(parser::AST::Index(0)),
-                }), // Argument a
+                }), 
             }),
             second: Box::new(parser::AST::Abstraction {
                 body: Box::new(parser::AST::Index(0)),
-            }), // Argument b
+            }), 
         };
 
         let result = reducer::reduce(term);
