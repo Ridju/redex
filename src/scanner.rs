@@ -8,7 +8,7 @@ pub enum Token {
 }
 
 #[derive(PartialEq, Debug)]
-enum ScannerError {
+pub enum ScannerError {
     UnexpectedCharacter(char),
 }
 
